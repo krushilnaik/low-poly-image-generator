@@ -1,0 +1,72 @@
+body {
+  font-family: Georgia, sans-serif;
+}
+body input,
+body button {
+  font: inherit;
+}
+
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+#basic {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-end;
+  gap: 0.5em;
+  margin: 0.5em 0;
+}
+#basic .instructions,
+#basic .credit {
+  display: block;
+  width: 100%;
+}
+
+#source-wrapper {
+  position: relative;
+}
+#source-wrapper #source {
+  display: block;
+}
+#source-wrapper #custom-points {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+#source-wrapper #custom-points [data-draggable] {
+  stroke: tomato;
+  stroke-width: 2;
+  fill: transparent;
+  cursor: move;
+}
+
+#advanced {
+  display: none;
+  -ms-interpolation-mode: nearest-neighbor;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: pixelated;
+}
+#advanced summary {
+  background: orange;
+  padding: 0.5em 1em;
+}
+#advanced #lines {
+  fill: none;
+}
+#advanced #lines #delaunay {
+  fill: black;
+  stroke: gray;
+}
+#advanced #lines #polys {
+  stroke-width: 2;
+  stroke-linecap: square;
+}
+#advanced .dg.main {
+  display: inline-block;
+}
+#advanced .dg.main .close-button {
+  display: none;
+}
