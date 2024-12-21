@@ -2,13 +2,10 @@
 <html lang="en" >
     <head>
         <meta charset="UTF-8">
-        <title>CodePen - Low-poly image generator</title>
+        <title>Low poly</title>
         <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="./style.css">
     </head>
     <body>
-    <script src="//unpkg.com/vue@2"></script>
-    <script src="//unpkg.com/dat.gui@0.7.7/build/dat.gui.js"></script>
-    <script src="//unpkg.com/drag-tracker@1"></script>
     <script src="//unpkg.com/jsfeat@0.0.8/build/jsfeat.js"></script>
     <script src="//unpkg.com/kdbush@3"></script>
     <script>
@@ -37,40 +34,18 @@
         <input type="file" id="sourceImg" accept="image/*" />
 
         <div id="basic">
-            <span class="instructions">Click to add points to help triangulation<br />(drag a point into a corner to disable it)</span>
 
             <div id="source-wrapper">
-                <canvas id="source" v-bind="size"></canvas>
-                <svg id="custom-points" v-bind="sizeSVG">
-                    <drag-node v-for="(p, i) in options.customPoints" v-model="options.customPoints[i]"></drag-node>
-                </svg>
+                <canvas id="source" width="570" height="570"></canvas>
             </div>
 
-            <svg id="low-poly" v-bind="sizeSVG" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="currentColor" stroke-width=".5">
-                <script type="text/x.poly-settings">{{ JSON.stringify(options) }}</script>
-                <path v-for="tri in triangles" :d="'M' + tri" :color="pickColor(tri)" />
-            </svg>
-            <span>
-                {{ triangles.length }} triangles<br />
-                <a href="#" @click="downloadSVG">Download SVG</a>
-            </span>
+            <svg id="low-poly" width="570" height="570" viewBox="0 0 570 570" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="currentColor"></svg>
         </div>
 
         <details id="advanced">
             <summary>Advanced</summary>
             <div>
-                <div id="controls"></div>
-
-                <canvas id="edges" v-bind="size"></canvas>
-
-                <svg id="lines" v-bind="sizeSVG">
-                    <g id="delaunay">
-                        <polygon v-for="tri in triangles" :points="tri" />
-                    </g>
-                    <g id="polys">
-                        <polyline v-for="(line, i) in polylines" :points="line" :style="{ stroke: debugColor(i) }" />
-                    </g>
-                </svg>
+                <canvas id="edges" viewBox="0 0 570 570" width="570" height="570"></canvas>
             </div>
         </details>
     </main>
