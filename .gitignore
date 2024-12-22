@@ -1,4 +1,6 @@
-/pokeball.png
-/cruel.png
-/verizon.png
-/yanmega.png
+*.png
+*.svg
+node_modules
+package-lock.json
+yarn.lock
+pokemon

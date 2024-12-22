@@ -18,7 +18,7 @@
         /*
             (c) 2017, Vladimir Agafonkin
             Simplify.js, a high-performance JS polyline simplification library
-            mourner.github.io/simplify-js
+            https://mourner.github.io/simplify-js
         */
         window.simplify = (function(){"use strict";function n(n,r){var t=n[0]-r[0],u=n[1]-r[1];return t*t+u*u}function r(n,r,t){var u=r[0],i=r[1],f=t[0]-u,o=t[1]-i;if(0!==f||0!==o){var e=((n[0]-u)*f+(n[1]-i)*o)/(f*f+o*o);e>1?(u=t[0],i=t[1]):e>0&&(u+=f*e,i+=o*e)}return f=n[0]-u,o=n[1]-i,f*f+o*o}function t(r,t){for(var u,i=r[0],f=[i],o=1,e=r.length;e>o;o++)u=r[o],n(u,i)>t&&(f.push(u),i=u);return i!==u&&f.push(u),f}function u(n,t,i,f,o){for(var e,v=f,a=t+1;i>a;a++){var c=r(n[a],n[t],n[i]);c>v&&(e=a,v=c)}v>f&&(e-t>1&&u(n,t,e,f,o),o.push(n[e]),i-e>1&&u(n,e,i,f,o))}function i(n,r){var t=n.length-1,i=[n[0]];return u(n,0,t,r,i),i.push(n[t]),i}function f(n,r,u){if(n.length<=2)return n;var f=void 0!==r?r*r:1;return n=u?n:t(n,f),n=i(n,f)}return f})();
 
@@ -31,24 +31,20 @@
     </script>
 
     <main id="app">
-        <input type="file" id="sourceImg" accept="image/*" />
-
         <div id="basic">
-
             <div id="source-wrapper">
                 <canvas id="source" width="570" height="570"></canvas>
             </div>
-
+    
             <svg id="low-poly" width="570" height="570" viewBox="0 0 570 570" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="currentColor"></svg>
         </div>
-
+    
         <details id="advanced">
-            <summary>Advanced</summary>
             <div>
                 <canvas id="edges" viewBox="0 0 570 570" width="570" height="570"></canvas>
             </div>
         </details>
     </main>
-  <script  src="./script.js"></script>
+    <script src="./script.js"></script>
 </body>
 </html>

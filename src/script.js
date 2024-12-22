@@ -1,3 +1,9 @@
+const { createCanvas, loadImage } = require("canvas");
+const jsfeat = require("jsfeat");
+const { cdt2d, simplify, tuple } = require("./lib");
+const KDBush = require("kdbush");
+// const { writeFileSync } = require("fs");
+
 const _state = {
   options: {
     canny: {
@@ -19,24 +25,17 @@ const _state = {
   },
 };
 
-let _img, _w, _h, _ctxSource, _sourceData, _ctx, _imageData, _data_u32, _bitmap;
+let _img, _w, _h, _sourceData, _imageData, _bitmap;
 
-function setImage(img) {
-  _img = img;
-  _w = img.width;
-  _h = img.height;
-
-  _ctx = document.querySelector("#edges").getContext("2d");
-  _ctxSource = document.querySelector("#source").getContext("2d");
-
-  _bitmap = new jsfeat.matrix_t(_w, _h, jsfeat.U8C1_t);
-}
+const sourceCanvas = createCanvas(570, 570);
+const sourceCtx = sourceCanvas.getContext("2d");
+const resultCanvas = createCanvas(570, 570);
+const resultCtx = resultCanvas.getContext("2d");
 
 function render() {
-  _ctxSource.drawImage(_img, 0, 0, _w, _h);
-  _sourceData = _ctxSource.getImageData(0, 0, _w, _h);
+  _sourceData = sourceCtx.getImageData(0, 0, _w, _h);
 
-  const ctx = _ctx,
+  const ctx = resultCtx,
     canny = _state.options.canny;
 
   ctx.drawImage(_img, 0, 0, _w, _h);
@@ -57,6 +56,143 @@ function render() {
 }
 
 function trace() {
+  function _traceFrom(x_1, y_1, grid) {
+    const branches = [];
+
+    function checkPixel(x, y) {
+      return grid[y] && grid[y][x];
+    }
+    function findNext(x, y, findAll) {
+      const options = [];
+      //Check up/down/left/right first, and only diagonals if we don't find anything.
+      //This will let us trace "staircases" as one line, and not a series or intersections.
+      if (checkPixel(x, y - 1)) {
+        options.push(tuple(x, y - 1));
+      }
+      if (checkPixel(x, y + 1)) {
+        options.push(tuple(x, y + 1));
+      }
+      if (checkPixel(x - 1, y)) {
+        options.push(tuple(x - 1, y));
+      }
+      if (checkPixel(x + 1, y)) {
+        options.push(tuple(x + 1, y));
+      }
+
+      if (options.length && !findAll) {
+        return options;
+      }
+
+      if (checkPixel(x - 1, y - 1)) {
+        options.push(tuple(x - 1, y - 1));
+      }
+      if (checkPixel(x + 1, y - 1)) {
+        options.push(tuple(x + 1, y - 1));
+      }
+      if (checkPixel(x - 1, y + 1)) {
+        options.push(tuple(x - 1, y + 1));
+      }
+      if (checkPixel(x + 1, y + 1)) {
+        options.push(tuple(x + 1, y + 1));
+      }
+
+      return options;
+    }
+    function collect(a, b, branch) {
+      branch.push(tuple(a, b));
+      grid[b][a] = 0;
+    }
+    function addBranch(startX, startY) {
+      const branch = [];
+      collect(startX, startY, branch);
+      branches.push(branch);
+      return branch;
+    }
+
+    //Start by initing our main branch
+    addBranch(x_1, y_1);
+
+    for (let i = 0; i < branches.length; i++) {
+      const branch = branches[i];
+      let [x0, y0] = branch[0],
+        [x, y] = branch[branch.length - 1];
+
+      let nexts,
+        pass = 1,
+        endOfLine = false;
+      while (true) {
+        nexts = findNext(x, y);
+
+        //If we reach an intersection:
+        if (nexts.length > 1 && branch.length > 1) {
+          //This may just be a 1px branch/noise, or a small section where the edge is 2px wide.
+          //To test that, we look at all the pixels we can reach from the first step of a new branch.
+          //If there are no more pixels than we can reach from our current position,
+          //it's just noise and not an actual branch.
+          const currentReach = findNext(x, y, true);
+          let maxReach = -1,
+            maxBranch,
+            toDelete = [];
+          nexts = nexts.filter(([xx, yy]) => {
+            const branchReach = findNext(xx, yy, true),
+              branchHasNewPixels = branchReach.some((px) => !currentReach.includes(px));
+            if (branchReach.length > maxReach) {
+              maxReach = branchReach.length;
+              maxBranch = tuple(xx, yy);
+            }
+
+            //If we decide this is just noise, clear the pixel so it's not picked up by a later traceFrom().
+            //Do that after this loop is finished, or else it will interfere with the other branches chance at a `maxReach`:
+            if (!branchHasNewPixels) {
+              toDelete.push(tuple(xx, yy));
+            }
+
+            return branchHasNewPixels;
+          });
+          toDelete.forEach(([xx, yy]) => (grid[yy][xx] = 0));
+
+          //If we filtered away all the branches, keep the one with more pixels.
+          //This lets us go around noisy corners or finish noisy line ends:
+          if (nexts.length === 0) {
+            nexts = [maxBranch];
+          }
+
+          //This is a real intersection of branches:
+          if (nexts.length > 1) {
+            nexts.forEach((coord) => {
+              const otherBranch = addBranch(x, y);
+              collect(coord[0], coord[1], otherBranch);
+            });
+            endOfLine = true;
+          }
+        }
+
+        //Keep following the current branch:
+        if (nexts.length && !endOfLine) {
+          [x, y] = nexts[0];
+          collect(x, y, branch);
+        } else {
+          endOfLine = true;
+        }
+
+        if (endOfLine) {
+          if (pass === 1) {
+            //Reverse and trace in the other direction from our starting point;
+            branch.reverse();
+            x = x0;
+            y = y0;
+
+            pass = 2;
+            endOfLine = false;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+    return branches;
+  }
+
   //Put our bitmap in a 2d grid:
   const grid = [];
   let i = 0;
@@ -85,145 +221,8 @@ function trace() {
 
     importantLines.push(trace);
   });
-  _ctx.putImageData(_imageData, 0, 0);
+  resultCtx.putImageData(_imageData, 0, 0);
   _state.image.traced = importantLines;
-}
-
-function _traceFrom(x_1, y_1, grid) {
-  const branches = [];
-
-  function checkPixel(x, y) {
-    return grid[y] && grid[y][x];
-  }
-  function findNext(x, y, findAll) {
-    const options = [];
-    //Check up/down/left/right first, and only diagonals if we don't find anything.
-    //This will let us trace "staircases" as one line, and not a series or intersections.
-    if (checkPixel(x, y - 1)) {
-      options.push(tuple(x, y - 1));
-    }
-    if (checkPixel(x, y + 1)) {
-      options.push(tuple(x, y + 1));
-    }
-    if (checkPixel(x - 1, y)) {
-      options.push(tuple(x - 1, y));
-    }
-    if (checkPixel(x + 1, y)) {
-      options.push(tuple(x + 1, y));
-    }
-
-    if (options.length && !findAll) {
-      return options;
-    }
-
-    if (checkPixel(x - 1, y - 1)) {
-      options.push(tuple(x - 1, y - 1));
-    }
-    if (checkPixel(x + 1, y - 1)) {
-      options.push(tuple(x + 1, y - 1));
-    }
-    if (checkPixel(x - 1, y + 1)) {
-      options.push(tuple(x - 1, y + 1));
-    }
-    if (checkPixel(x + 1, y + 1)) {
-      options.push(tuple(x + 1, y + 1));
-    }
-
-    return options;
-  }
-  function collect(a, b, branch) {
-    branch.push(tuple(a, b));
-    grid[b][a] = 0;
-  }
-  function addBranch(startX, startY) {
-    const branch = [];
-    collect(startX, startY, branch);
-    branches.push(branch);
-    return branch;
-  }
-
-  //Start by initing our main branch
-  addBranch(x_1, y_1);
-
-  for (let i = 0; i < branches.length; i++) {
-    const branch = branches[i];
-    let [x0, y0] = branch[0],
-      [x, y] = branch[branch.length - 1];
-
-    let nexts,
-      pass = 1,
-      endOfLine = false;
-    while (true) {
-      nexts = findNext(x, y);
-
-      //If we reach an intersection:
-      if (nexts.length > 1 && branch.length > 1) {
-        //This may just be a 1px branch/noise, or a small section where the edge is 2px wide.
-        //To test that, we look at all the pixels we can reach from the first step of a new branch.
-        //If there are no more pixels than we can reach from our current position,
-        //it's just noise and not an actual branch.
-        const currentReach = findNext(x, y, true);
-        let maxReach = -1,
-          maxBranch,
-          toDelete = [];
-        nexts = nexts.filter(([xx, yy]) => {
-          const branchReach = findNext(xx, yy, true),
-            branchHasNewPixels = branchReach.some((px) => !currentReach.includes(px));
-          if (branchReach.length > maxReach) {
-            maxReach = branchReach.length;
-            maxBranch = tuple(xx, yy);
-          }
-
-          //If we decide this is just noise, clear the pixel so it's not picked up by a later traceFrom().
-          //Do that after this loop is finished, or else it will interfere with the other branches chance at a `maxReach`:
-          if (!branchHasNewPixels) {
-            toDelete.push(tuple(xx, yy));
-          }
-
-          return branchHasNewPixels;
-        });
-        toDelete.forEach(([xx, yy]) => (grid[yy][xx] = 0));
-
-        //If we filtered away all the branches, keep the one with more pixels.
-        //This lets us go around noisy corners or finish noisy line ends:
-        if (nexts.length === 0) {
-          nexts = [maxBranch];
-        }
-
-        //This is a real intersection of branches:
-        if (nexts.length > 1) {
-          nexts.forEach((coord) => {
-            const otherBranch = addBranch(x, y);
-            collect(coord[0], coord[1], otherBranch);
-          });
-          endOfLine = true;
-        }
-      }
-
-      //Keep following the current branch:
-      if (nexts.length && !endOfLine) {
-        [x, y] = nexts[0];
-        collect(x, y, branch);
-      } else {
-        endOfLine = true;
-      }
-
-      if (endOfLine) {
-        if (pass === 1) {
-          //Reverse and trace in the other direction from our starting point;
-          branch.reverse();
-          x = x0;
-          y = y0;
-
-          pass = 2;
-          endOfLine = false;
-        } else {
-          break;
-        }
-      }
-    }
-  }
-  return branches;
 }
 
 function cluster(points, tolerance) {
@@ -303,9 +302,8 @@ function cluster(points, tolerance) {
     //If we find a group of overlapping clusters, we can only pick the largest one, and then recalculate.
     let prevCenter;
     for (const cl of tempClusters) {
-      const ids = cl.pointIds,
-        // pop = cl.population,
-        center = avgPos(ids.map((i) => newPoints[i]));
+      const ids = cl.pointIds;
+      const center = avgPos(ids.map((i) => newPoints[i]));
 
       let doCombine = false;
       if (prevCenter) {
@@ -313,9 +311,8 @@ function cluster(points, tolerance) {
         if (dist > minClusterDistance2) {
           doCombine = true;
         }
-      }
-      //This is the first and largest cluster. Always combine:
-      else {
+      } else {
+        //This is the first and largest cluster. Always combine:
         doCombine = true;
       }
       if (!doCombine) {
@@ -330,35 +327,29 @@ function cluster(points, tolerance) {
       prevCenter = center;
     }
 
-    pointInfos = pointInfos.filter((p, i) => !toRemove.includes(i));
+    pointInfos = pointInfos.filter((_, i) => !toRemove.includes(i));
   } while (pointInfos.length && failsafe < 999);
 
   return clusters;
 }
 
-function load() {
-  /* Image uploading */
-  const img = new Image();
-  img.onload = (e) => {
-    setImage(img);
-    //Changing a canvas' size (which is done by Vue) clears its content,
-    //so make sure we render() *after* the size has changed:
-    setTimeout(() => {
-      render();
-      //Don't know why, but on a new image, it takes two renders for the result to "set":
-      render();
-      console.log(getTriangles());
-    }, 0);
-  };
+async function load(path = "./charizard y.png") {
+  _img = await loadImage(path);
 
-  document.querySelector("#sourceImg").onchange = function (e) {
-    _ctxSource.clearRect(0, 0, _w, _h);
-    var url = URL.createObjectURL(this.files[0]);
-    img.src = url;
-  };
+  _w = _img.width;
+  _h = _img.height;
 
-  img.crossOrigin = "anonymous";
-  img.src = "./charizard y.png";
+  sourceCtx.clearRect(0, 0, _w, _h);
+  sourceCtx.clearRect(0, 0, _w, _h);
+
+  _bitmap = new jsfeat.matrix_t(_w, _h, jsfeat.U8C1_t);
+
+  sourceCtx.drawImage(_img, 0, 0, _w, _h);
+
+  render();
+  render();
+
+  return getTriangles();
 }
 
 function getPolylines() {
@@ -427,17 +418,15 @@ function getColor(triangle) {
 function getTriangles() {
   const polylines = getPolylines();
 
-  const svg = document.getElementById("low-poly");
-
-  svg.innerHTML = "";
+  // let svg = `<svg id="low-poly" width="570" height="570" viewBox="0 0 570 570" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="currentColor">\n`;
 
   if (!polylines.length) {
     return [];
   }
 
-  paths = [];
+  let paths = [];
 
-  const points = new Set(),
+  const points = new Set([tuple(0, 0), tuple(_w, 0), tuple(_w, _h), tuple(0, _h)]),
     edges = [];
 
   polylines.forEach((poly) => {
@@ -456,9 +445,6 @@ function getTriangles() {
     }
   });
 
-  //Add helper points and corners, and then do a Constrained Delaunay triangulation:
-  points.add(tuple(0, 0)).add(tuple(_w, 0)).add(tuple(_w, _h)).add(tuple(0, _h));
-
   const pointsArr = Array.from(points),
     edgeIndexes = edges.map((edge) => edge.map((p) => pointsArr.indexOf(p)));
 
@@ -476,17 +462,22 @@ function getTriangles() {
 
     const temp = {
       points: "M" + triangle.flat().join(" "),
-      color: getColor(triangle),
+      color: getColor(triangle).replace("a", "").replace(",255", ""),
     };
 
-    if (temp.color !== "rgba(0,0,0,0)") {
+    if (!temp.color.endsWith(",0)")) {
       paths.push(temp);
+      // svg += `  <path d='${temp.points}' color='${temp.color}'></path>\n`;
     }
-
-    svg.innerHTML += `<path d='${temp.points}' color='${temp.color}'></path>`;
   });
+
+  // svg += `</svg>`;
+
+  // writeFileSync("test.svg", svg);
 
   return paths;
 }
 
-document.addEventListener("DOMContentLoaded", load);
+module.exports = load;
+
+// load().then(console.log);

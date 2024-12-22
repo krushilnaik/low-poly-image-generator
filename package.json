@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "canvas": "^2.11.2",
+    "express": "^4.21.2",
+    "jsfeat": "^0.0.8",
+    "kdbush": "3"
+  }
+}
