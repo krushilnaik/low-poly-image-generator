@@ -1,6 +1,17 @@
-*.png
-*.svg
+# js stuff
 node_modules
 package-lock.json
 yarn.lock
+
+# python stuff
+venv
+__pycache__
+
+
+# common sense stuff
+.env
+
+# local stuff
 pokemon
+tests
+failed.txt

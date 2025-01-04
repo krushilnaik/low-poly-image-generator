@@ -1,5 +1,5 @@
 const express = require("express");
-const getPokegons = require("./src/script");
+const getPokegons = require("./script");
 
 const app = express();
 
@@ -13,4 +13,4 @@ app.get("/generate/:id", (req, res) => {
 });
 
 app.listen(3030);
-console.log("Express started on port 3030");
+console.log("Express app started on port 3030");

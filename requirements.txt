@@ -1,0 +1,7 @@
+requests
+pillow
+typing-extensions
+lxml
+beautifulsoup4
+python-dotenv
+pymongo

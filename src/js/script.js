@@ -12,7 +12,7 @@ const _state = {
       high_threshold: 50, //80,
     },
     tracing: {
-      minLength: 18, //10,
+      minLength: 10, //10,
       lineTolerance: 4, //7,
       clustering: 3,
       useDelaunay: true,
