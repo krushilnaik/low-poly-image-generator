@@ -7,13 +7,13 @@ from pprint import pprint
 
 import pymongo
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, ResultSet, Tag
 from dotenv import load_dotenv
 
 from evo import get_chains
 from helpers import decimal, get_text, minify
 
-START_POKEMON = "arceus"
+START_POKEMON = "bulbasaur"
 
 BASE_URL = "https://pokemondb.net/pokedex"
 POKEGON_URL = "http://localhost:3030/generate"
@@ -76,6 +76,23 @@ if __name__ == "__main__":
                 species = get_text(soup, f"{tab} .vitals-table tr:nth-child(3) td")
                 height = get_text(soup, f"{tab} .vitals-table tr:nth-child(4) td")
                 weight = get_text(soup, f"{tab} .vitals-table tr:nth-child(5) td")
+                description = get_text(soup, "tr:last-child .cell-med-text")
+                location_table: ResultSet[Tag] = soup.select("#dex-locations + .grid-row .vitals-table tr")
+
+                locations: dict[str, str] = {}
+
+                for i, loc in enumerate(location_table, start=1):
+                    games = "/".join([x.text for x in loc.select("span")])
+                    areas = loc.select_one("td")
+
+                    if games and areas:
+                        locations[f"{i:02}. {games}"] = areas.text
+
+                # base stats
+                hp, attack, defense, sp_atk, sp_def, speed = [
+                    x.text for x in soup.select(f"{tab} tbody tr th + .cell-num")
+                ]
+
                 # description = get_text(soup, "#main > div:nth-child(14) > table > tbody > tr:last-child > td")
 
                 # skip partner pokemon
@@ -90,6 +107,15 @@ if __name__ == "__main__":
                 species = species.replace("Pokémon", "").strip()
                 height = float(re.split(r"\s", height)[0])
                 weight = float(re.split(r"\s", weight)[0].replace("—", "0"))
+
+                stats = {
+                    "hp": int(hp),
+                    "attack": int(attack),
+                    "defense": int(defense),
+                    "sp_attack": int(sp_atk),
+                    "sp_defense": int(sp_def),
+                    "speed": int(speed),
+                }
 
                 multipliers = soup.select(f"{tab} .active .type-table td")
                 if len(multipliers) == 0:
@@ -139,9 +165,14 @@ if __name__ == "__main__":
                 print("forms:", forms)
                 print("paths:", f"{len(paths)} triangles")
                 print("search:", minify(f"{form if form != 'Base' else ''} {name}"))
+                print("stats:")
+                pprint(stats)
                 print("evolution chains:")
                 # pprint(effectivenesses)
                 pprint(evolutions)
+                # print("locations:")
+                # pprint(locations)
+                # exit()
 
                 pokegonDB.insert_one(
                     {
@@ -155,6 +186,9 @@ if __name__ == "__main__":
                         "types": types,
                         "paths": paths,
                         "forms": forms,
+                        "stats": stats,
+                        "description": description,
+                        "locations": locations,
                         "evolutions": evolutions,
                         "effectivenesses": effectivenesses,
                         "search": minify(f"{form if form != 'Base' else ''} {name}"),

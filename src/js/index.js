@@ -1,5 +1,5 @@
 const express = require("express");
-const getPokegons = require("./script");
+const { getPokegons } = require("./script");
 
 const app = express();
 
